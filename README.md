@@ -23,10 +23,10 @@ This project focuses on mapping relationships between base chemicals, intermedia
 ---
 
 ## 🗂 Project Structure
-├── db.py # Streamlit app
-├── db.xlsx # Default database
-├── requirements.txt # Dependencies
-└── README.md
+├── db.py # Streamlit app  
+├── db.xlsx # Default database  
+├── requirements.txt # Dependencies  
+└── README.md  
 
 ---
 
