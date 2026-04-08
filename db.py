@@ -270,6 +270,16 @@ def get_all_locations(material_suppliers: dict):
             if item["location"]
         }
     )
+def resolve_location_filter(location_scope: str, manual_locations=None):
+    manual_locations = manual_locations or []
+
+    if location_scope == "전국":
+        return []
+    if location_scope == "울산":
+        return ["울산"]
+    if location_scope == "직접선택":
+        return manual_locations
+    return []
 
 
 def build_route_maps(input_df: pd.DataFrame, output_df: pd.DataFrame):
@@ -1274,7 +1284,24 @@ all_locations = get_all_locations(material_suppliers) if has_supplier_data else 
 if has_supplier_data:
     supplier_required = st.sidebar.checkbox("Known supplier data only", value=False)
     selected_suppliers = st.sidebar.multiselect("Specific suppliers", options=all_supplier_names, default=[])
-    selected_locations = st.sidebar.multiselect("Specific locations", options=all_locations, default=[])
+
+    location_scope = st.sidebar.radio(
+        "Supplier region",
+        ["전국", "울산", "직접선택"],
+        index=0,
+        horizontal=True,
+    )
+
+    manual_locations = []
+    if location_scope == "직접선택":
+        manual_locations = st.sidebar.multiselect(
+            "Specific locations",
+            options=all_locations,
+            default=[],
+        )
+
+    selected_locations = resolve_location_filter(location_scope, manual_locations)
+
 else:
     supplier_required = False
     selected_suppliers = []
