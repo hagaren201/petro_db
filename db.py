@@ -270,6 +270,7 @@ def get_all_locations(material_suppliers: dict):
             if item["location"]
         }
     )
+
 def resolve_location_filter(location_scope: str, manual_locations=None):
     manual_locations = manual_locations or []
 
@@ -710,11 +711,13 @@ def build_node_hover_text(node_id, meta, info, route_filter_active=False, suppli
     lines.append(f"Matched route Licensors: {licensor_text}")
 
     supplier_names = info.get("display_supplier_names", [])
+    supplier_label = "Suppliers (filtered)" if supplier_filter_active else "Suppliers"
     supplier_text = ", ".join(supplier_names) if supplier_names else "-"
-    lines.append(f"Suppliers: {supplier_text}")
+    lines.append(f"{supplier_label}: {supplier_text}")
 
+    capacity_label = "Total capacity (filtered)" if supplier_filter_active else "Total capacity"
     capacity_text = clean_text(info.get("display_capacity_total", ""))
-    lines.append(f"Total capacity: {capacity_text}")
+    lines.append(f"{capacity_label}: {capacity_text}")
 
     return "<br>".join(lines)
 
@@ -871,11 +874,12 @@ def annotate_graph(
                 keep = keep and x.get("location", "") in selected_locations
             if keep:
                 filtered_items.append(x)
-        
+
         if supplier_filter_active:
             display_items = filtered_items
         else:
             display_items = items
+
         info["display_supplier_items"] = display_items
         info["display_supplier_names"] = sorted({x["supplier_name"] for x in display_items if x.get("supplier_name")})
         info["display_capacity_total"] = format_capacity_sum(display_items)
@@ -1304,7 +1308,6 @@ if has_supplier_data:
         )
 
     selected_locations = resolve_location_filter(location_scope, manual_locations)
-
 else:
     supplier_required = False
     selected_suppliers = []
