@@ -871,8 +871,11 @@ def annotate_graph(
                 keep = keep and x.get("location", "") in selected_locations
             if keep:
                 filtered_items.append(x)
-
-        display_items = filtered_items if (supplier_filter_active and filtered_items) else items
+        
+        if supplier_filter_active:
+            display_items = filtered_items
+        else:
+            display_items = items
         info["display_supplier_items"] = display_items
         info["display_supplier_names"] = sorted({x["supplier_name"] for x in display_items if x.get("supplier_name")})
         info["display_capacity_total"] = format_capacity_sum(display_items)
