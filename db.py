@@ -697,6 +697,58 @@ def format_capacity_sum(items):
     return f"{total_text} {unit_text}".strip()
 
 
+def _capacity_sort_value(item):
+    raw = str(item.get("estimated_capacity", "")).replace(",", "").strip()
+    try:
+        return float(raw)
+    except ValueError:
+        return -1.0
+
+
+def format_supplier_with_capacity(items):
+    if not items:
+        return ""
+
+    deduped = {}
+    for x in items:
+        supplier = x.get("supplier_name", "")
+        location = x.get("location", "")
+        capacity = x.get("estimated_capacity", "")
+        unit = x.get("capacity_unit", "")
+        key = (supplier, location, capacity, unit)
+        deduped[key] = {
+            "supplier_name": supplier,
+            "location": location,
+            "estimated_capacity": capacity,
+            "capacity_unit": unit,
+        }
+
+    sorted_items = sorted(
+        deduped.values(),
+        key=lambda x: (-_capacity_sort_value(x), x.get("supplier_name", ""), x.get("location", "")),
+    )
+
+    formatted = []
+    for x in sorted_items:
+        supplier = x.get("supplier_name", "").strip()
+        if not supplier:
+            continue
+        cap = str(x.get("estimated_capacity", "")).strip()
+        unit = str(x.get("capacity_unit", "")).strip()
+        if cap:
+            formatted.append(f"{supplier} ({cap}{(' ' + unit) if unit else ''})")
+        else:
+            formatted.append(supplier)
+
+    return ", ".join(formatted)
+
+
+def format_locations_full(items):
+    if not items:
+        return ""
+    locations = sorted({x.get("location", "").strip() for x in items if x.get("location", "").strip()})
+    return ", ".join(locations)
+
 
 def build_node_hover_text(node_id, meta, info, route_filter_active=False, supplier_filter_active=False):
     def clean_text(text, fallback="-"):
@@ -1158,29 +1210,26 @@ def build_visible_route_table(
     for e in kept_edges:
         rid = e["route_id"]
         licensors = route_licensors.get(rid, [])
-        licensor_names = ", ".join(x["licensor_name"] for x in licensors)
+        licensor_names = ", ".join(x["licensor_name"] for x in licensors if x.get("licensor_name"))
 
         rows.append(
             {
-                "depth": e.get("depth", ""),
                 "from_material": material_by_id[e["src"]]["material_name"],
                 "to_material": material_by_id[e["dst"]]["material_name"],
-                "route_id": rid,
                 "route_name": route_by_id.get(rid, {}).get("route_name", rid),
                 "licensable": "Y" if licensors else "N",
                 "licensors": licensor_names,
-                "route_match": "Y" if e.get("route_match") else "N",
-                "src_supplier_match": "Y" if e.get("src_supplier_match") else "N",
-                "dst_supplier_match": "Y" if e.get("dst_supplier_match") else "N",
             }
         )
 
     if not rows:
         return pd.DataFrame(columns=[
-            "depth", "from_material", "to_material", "route_id", "route_name",
-            "licensable", "licensors", "route_match", "src_supplier_match", "dst_supplier_match"
+            "from_material", "to_material", "route_name", "licensable", "licensors"
         ])
-    return pd.DataFrame(rows)
+
+    return pd.DataFrame(rows)[[
+        "from_material", "to_material", "route_name", "licensable", "licensors"
+    ]]
 
 
 def build_supplier_summary_table(kept_nodes, material_by_id, node_info):
@@ -1188,26 +1237,30 @@ def build_supplier_summary_table(kept_nodes, material_by_id, node_info):
     for node_id in sorted(kept_nodes):
         if node_id not in material_by_id:
             continue
+
         info = node_info.get(node_id, {})
-        if info.get("supplier_count", 0) == 0:
+        display_items = info.get("display_supplier_items", [])
+        if not display_items:
             continue
+
         rows.append(
             {
-                "material_id": node_id,
-                "material_name": material_by_id[node_id]["material_name"],
                 "group": material_by_id[node_id]["material_group"],
-                "supplier_count": info.get("supplier_count", 0),
-                "supplier_match": "Y" if info.get("supplier_match") else "N",
-                "suppliers": info.get("supplier_names_text", ""),
-                "locations": info.get("locations_text", ""),
-                "capacity": info.get("capacity_text", ""),
+                "material_name": material_by_id[node_id]["material_name"],
+                "suppliers": format_supplier_with_capacity(display_items),
+                "locations": format_locations_full(display_items),
+                "capacity": format_capacity_sum(display_items),
             }
         )
+
     if not rows:
         return pd.DataFrame(columns=[
-            "material_id", "material_name", "group", "supplier_count", "supplier_match", "suppliers", "locations", "capacity"
+            "group", "material_name", "suppliers", "locations", "capacity"
         ])
-    return pd.DataFrame(rows)
+
+    return pd.DataFrame(rows)[[
+        "group", "material_name", "suppliers", "locations", "capacity"
+    ]]
 
 
 # -------------------------
@@ -1396,7 +1449,7 @@ visible_df = build_visible_route_table(
     route_licensors=route_licensors,
     node_info=node_info,
 )
-st.dataframe(visible_df, width='stretch')
+st.dataframe(visible_df, width='stretch', hide_index=True)
 
 st.subheader("Supplier summary")
 supplier_summary_df = build_supplier_summary_table(
@@ -1404,7 +1457,7 @@ supplier_summary_df = build_supplier_summary_table(
     material_by_id=material_by_id,
     node_info=node_info,
 )
-st.dataframe(supplier_summary_df, width='stretch')
+st.dataframe(supplier_summary_df, width='stretch', hide_index=True)
 
 with st.expander("Raw tables"):
     st.write("material_master")
