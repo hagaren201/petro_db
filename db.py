@@ -14,7 +14,7 @@ st.set_page_config(page_title="Chemical Downstream DB", layout="wide")
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_FILE = os.path.join(BASE_DIR, "db.xlsx")
 ROOT_OPTIONS = ["Ethylene", "Propylene", "C4", "Aromatics", "Methanol"]
-C4_MULTI_ROOT_NAMES = ["Butadiene", "1-Butene", "Isobutylene"]
+C4_MULTI_ROOT_NAMES = ["Butadiene", "1-Butene", "Isobutylene", "n-Butane"]
 ARO_MULTI_ROOT_NAMES = ["Benzene", "Toluene", "Xylene"]
 
 MULTI_ROOT_NAME_MAP = {
