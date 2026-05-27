@@ -9,7 +9,7 @@ This project focuses on mapping relationships between base chemicals, intermedia
 ## 🚀 Features
 
 - Multi-root value chain visualization  
-  - Ethylene / Propylene / C4 / Aromatics / Methanol
+  - C1(Methanol) / C2(Ethylene) / C3(Propylene) / C4(1-Butene, Isobutylene, Butadiene) / Aromatics(Benzene, Toluene, Xylene)
 - Lane-based downstream mapping (depth-controlled)
 - Interactive filtering:
   - Licensor-based route filtering
