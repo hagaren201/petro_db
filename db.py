@@ -13,26 +13,46 @@ st.set_page_config(page_title="Chemical Downstream DB", layout="wide")
 
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_FILE = os.path.join(BASE_DIR, "db.xlsx")
-ROOT_OPTIONS = ["Ethylene", "Propylene", "C4", "Aromatics", "Methanol"]
-C4_MULTI_ROOT_NAMES = ["Butadiene", "1-Butene", "Isobutylene", "n-Butane"]
+ROOT_OPTIONS = ["C1", "C2", "C3", "C4", "C5", "Aromatics"]
+C1_MULTI_ROOT_NAMES = ["Methanol"]
+C2_MULTI_ROOT_NAMES = ["Ethylene"]
+C3_MULTI_ROOT_NAMES = ["Propylene"]
+C4_MULTI_ROOT_NAMES = ["Butadiene", "1-Butene", "Isobutylene"]
+C5_MULTI_ROOT_NAMES = ["Isoprene", "Piperylene", "DCPD"]
 ARO_MULTI_ROOT_NAMES = ["Benzene", "Toluene", "Xylene"]
 
 MULTI_ROOT_NAME_MAP = {
+    "C1": C1_MULTI_ROOT_NAMES,
+    "C2": C2_MULTI_ROOT_NAMES,
+    "C3": C3_MULTI_ROOT_NAMES,
     "C4": C4_MULTI_ROOT_NAMES,
+    "C5": C5_MULTI_ROOT_NAMES,
     "Aromatics": ARO_MULTI_ROOT_NAMES,
 }
 
 MULTI_ROOT_GROUP_MEMBERS = {
+    "C1": {"Methanol", "C1"},
+    "C2": {"Ethylene", "C2"},
+    "C3": {"Propylene", "C3"},
     "C4": {"C4"},
+    "C5": {"C5"},
     "Aromatics": {"Benzene", "Toluene", "Xylene", "Aromatics"},
 }
-
 GROUP_COLORS = {
+    "C1": "#E6E0F8",
+    "C2": "#D9EAF7",
+    "C3": "#FCE5CD",
+    "C4": "#D9EAD3",
+    "C5": "#DDECCB",
+    "Aromatics": "#F4CCCC",
+
+    "Methanol": "#E6E0F8",
     "Ethylene": "#D9EAF7",
     "Propylene": "#FCE5CD",
-    "C4": "#D9EAD3",
-    "Aromatics": "#F4CCCC",
-    "Methanol": "#E6E0F8",
+    "Benzene": "#F4CCCC",
+    "Toluene": "#F4CCCC",
+    "Xylene": "#F4CCCC",
+
     "Other": "#EAD1DC",
 }
 
@@ -413,9 +433,12 @@ def material_matches_supplier_filters(
 
 def get_root_candidates(material_df: pd.DataFrame):
     root_candidates = []
+
     for g in ROOT_OPTIONS:
         if g in MULTI_ROOT_NAME_MAP:
-            subset = material_df[material_df["material_name"].isin(MULTI_ROOT_NAME_MAP[g])]
+            root_names = MULTI_ROOT_NAME_MAP[g]
+            subset = material_df[material_df["material_name"].isin(root_names)]
+
             if len(subset) > 0:
                 root_candidates.append(
                     {
@@ -428,21 +451,6 @@ def get_root_candidates(material_df: pd.DataFrame):
                 )
             continue
 
-        subset = material_df[
-            (material_df["material_group"] == g)
-            & (material_df["material_type"] == "Base chemical")
-        ]
-        if not subset.empty:
-            row = subset.iloc[0]
-            root_candidates.append(
-                {
-                    "label": g,
-                    "group": g,
-                    "material_id": row["material_id"],
-                    "material_name": row["material_name"],
-                    "is_multi_root": False,
-                }
-            )
     return root_candidates
 
 
@@ -696,58 +704,6 @@ def format_capacity_sum(items):
     unit_text = "/".join(units) if units else ""
     return f"{total_text} {unit_text}".strip()
 
-
-def _capacity_sort_value(item):
-    raw = str(item.get("estimated_capacity", "")).replace(",", "").strip()
-    try:
-        return float(raw)
-    except ValueError:
-        return -1.0
-
-
-def format_supplier_with_capacity(items):
-    if not items:
-        return ""
-
-    deduped = {}
-    for x in items:
-        supplier = x.get("supplier_name", "")
-        location = x.get("location", "")
-        capacity = x.get("estimated_capacity", "")
-        unit = x.get("capacity_unit", "")
-        key = (supplier, location, capacity, unit)
-        deduped[key] = {
-            "supplier_name": supplier,
-            "location": location,
-            "estimated_capacity": capacity,
-            "capacity_unit": unit,
-        }
-
-    sorted_items = sorted(
-        deduped.values(),
-        key=lambda x: (-_capacity_sort_value(x), x.get("supplier_name", ""), x.get("location", "")),
-    )
-
-    formatted = []
-    for x in sorted_items:
-        supplier = x.get("supplier_name", "").strip()
-        if not supplier:
-            continue
-        cap = str(x.get("estimated_capacity", "")).strip()
-        unit = str(x.get("capacity_unit", "")).strip()
-        if cap:
-            formatted.append(f"{supplier} ({cap}{(' ' + unit) if unit else ''})")
-        else:
-            formatted.append(supplier)
-
-    return ", ".join(formatted)
-
-
-def format_locations_full(items):
-    if not items:
-        return ""
-    locations = sorted({x.get("location", "").strip() for x in items if x.get("location", "").strip()})
-    return ", ".join(locations)
 
 
 def build_node_hover_text(node_id, meta, info, route_filter_active=False, supplier_filter_active=False):
@@ -1210,26 +1166,29 @@ def build_visible_route_table(
     for e in kept_edges:
         rid = e["route_id"]
         licensors = route_licensors.get(rid, [])
-        licensor_names = ", ".join(x["licensor_name"] for x in licensors if x.get("licensor_name"))
+        licensor_names = ", ".join(x["licensor_name"] for x in licensors)
 
         rows.append(
             {
+                "depth": e.get("depth", ""),
                 "from_material": material_by_id[e["src"]]["material_name"],
                 "to_material": material_by_id[e["dst"]]["material_name"],
+                "route_id": rid,
                 "route_name": route_by_id.get(rid, {}).get("route_name", rid),
                 "licensable": "Y" if licensors else "N",
                 "licensors": licensor_names,
+                "route_match": "Y" if e.get("route_match") else "N",
+                "src_supplier_match": "Y" if e.get("src_supplier_match") else "N",
+                "dst_supplier_match": "Y" if e.get("dst_supplier_match") else "N",
             }
         )
 
     if not rows:
         return pd.DataFrame(columns=[
-            "from_material", "to_material", "route_name", "licensable", "licensors"
+            "depth", "from_material", "to_material", "route_id", "route_name",
+            "licensable", "licensors", "route_match", "src_supplier_match", "dst_supplier_match"
         ])
-
-    return pd.DataFrame(rows)[[
-        "from_material", "to_material", "route_name", "licensable", "licensors"
-    ]]
+    return pd.DataFrame(rows)
 
 
 def build_supplier_summary_table(kept_nodes, material_by_id, node_info):
@@ -1237,30 +1196,26 @@ def build_supplier_summary_table(kept_nodes, material_by_id, node_info):
     for node_id in sorted(kept_nodes):
         if node_id not in material_by_id:
             continue
-
         info = node_info.get(node_id, {})
-        display_items = info.get("display_supplier_items", [])
-        if not display_items:
+        if info.get("supplier_count", 0) == 0:
             continue
-
         rows.append(
             {
-                "group": material_by_id[node_id]["material_group"],
+                "material_id": node_id,
                 "material_name": material_by_id[node_id]["material_name"],
-                "suppliers": format_supplier_with_capacity(display_items),
-                "locations": format_locations_full(display_items),
-                "capacity": format_capacity_sum(display_items),
+                "group": material_by_id[node_id]["material_group"],
+                "supplier_count": info.get("supplier_count", 0),
+                "supplier_match": "Y" if info.get("supplier_match") else "N",
+                "suppliers": info.get("supplier_names_text", ""),
+                "locations": info.get("locations_text", ""),
+                "capacity": info.get("capacity_text", ""),
             }
         )
-
     if not rows:
         return pd.DataFrame(columns=[
-            "group", "material_name", "suppliers", "locations", "capacity"
+            "material_id", "material_name", "group", "supplier_count", "supplier_match", "suppliers", "locations", "capacity"
         ])
-
-    return pd.DataFrame(rows)[[
-        "group", "material_name", "suppliers", "locations", "capacity"
-    ]]
+    return pd.DataFrame(rows)
 
 
 # -------------------------
@@ -1449,7 +1404,7 @@ visible_df = build_visible_route_table(
     route_licensors=route_licensors,
     node_info=node_info,
 )
-st.dataframe(visible_df, width='stretch', hide_index=True)
+st.dataframe(visible_df, width='stretch')
 
 st.subheader("Supplier summary")
 supplier_summary_df = build_supplier_summary_table(
@@ -1457,7 +1412,7 @@ supplier_summary_df = build_supplier_summary_table(
     material_by_id=material_by_id,
     node_info=node_info,
 )
-st.dataframe(supplier_summary_df, width='stretch', hide_index=True)
+st.dataframe(supplier_summary_df, width='stretch')
 
 with st.expander("Raw tables"):
     st.write("material_master")
